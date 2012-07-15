@@ -1,29 +1,45 @@
 package models;
 
-import java.util.Date;
-
-public class RunStatistic {
+public class RunStatistic implements Comparable<RunStatistic> {
 
 	/*
-	 * {"version":1,
+	 * {"version":1, 
 	 * "timestamp":"2012-03-17 09:31:37 +0100", 
 	 * "heart_rate":121,
 	 * "signal_strength":100, 
-	 * "duration":0, "distance":0}
+	 * "duration":0, 
+	 * "distance":0}
 	 */
-	
+
 	private Long version;
-	
+
 	private String timestamp;
-	
+
 	private Integer heart_rate;
-	
+
 	private Integer signalStrength;
-	
+
 	private Integer duration;
-	
+
 	private Long distance;
-	
+
+	@Override
+	public int compareTo(RunStatistic comparator) {
+
+		final int BEFORE = -1;
+		final int EQUAL = 0;
+		final int AFTER = 1;
+
+		if (this == comparator)
+			return EQUAL;
+
+		if (this.duration < comparator.duration)
+			return BEFORE;
+		else
+			return AFTER;
+
+	}
+
 	public Long getVersion() {
 		return version;
 	}
@@ -71,6 +87,5 @@ public class RunStatistic {
 	public void setDistance(Long distance) {
 		this.distance = distance;
 	}
-	
-	
+
 }

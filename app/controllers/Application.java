@@ -1,45 +1,76 @@
 package controllers;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import models.RunStatistic;
+
+import org.codehaus.jackson.JsonNode;
+
 import play.Logger;
+import play.libs.F.Function;
 import play.mvc.Controller;
 import play.mvc.Result;
 
-import com.google.gson.Gson;
-
 public class Application extends Controller {
 
+	// this contains the list of Json nodes received from Runtastic WS
+	private static List<RunStatistic> dataFromWS = new ArrayList<RunStatistic>();
+	private static final String wsUrl = "http://codingcontest.runtastic.com/api/user/2/sport_sessions/10052308/heart_rate_trace";
+
+	public static Result getJson() {
+
+		// call Runtastic Webservice through the Async Module
+		// It calls the Url through the Async Akka Webservice thread
+		// It'll be much readable if Java had lambdas :-)
+		return async(play.libs.WS
+				.url(wsUrl)
+				.get()
+				.map(new Function<play.libs.WS.Response, Result>() {
+					public Result apply(play.libs.WS.Response response)
+							throws Throwable {
+						JsonNode jsonNodes = response.asJson();
+						Logger.info("Got: " + jsonNodes.size()
+								+ " jsonNodes from WS");
+						for (Iterator<JsonNode> iterator = jsonNodes.iterator(); iterator
+								.hasNext();) {
+							JsonNode node = iterator.next();
+							RunStatistic nodeRepresentation = new RunStatistic();
+							nodeRepresentation.setDuration(node.findPath(
+									"duration").getIntValue());
+							nodeRepresentation.setHeartRate(node.findPath(
+									"heart_rate").getIntValue());
+							nodeRepresentation.setTimestamp(node.findPath(
+									"timestamp").getTextValue());
+							nodeRepresentation.setSignalStrength(node.findPath(
+									"signal_strength").getIntValue());
+							nodeRepresentation.setDistance(node.findPath(
+									"distance").getLongValue());
+							nodeRepresentation.setVersion(node.findPath(
+									"version").getLongValue());
+							dataFromWS.add(nodeRepresentation);
+						}
+						return ok("");
+					}
+				}));
+	}
+
 	public static Result index() {
+		// get data from Runtastic WS
+		getJson();
+		// sort because the data can be unsorted
+		Collections.sort(dataFromWS);
+		// process and o/p results to Logger
+		process(dataFromWS);
 
-		String[] listOfRates = {
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:31:37 +0100\", \"heart_rate\":121, \"signal_strength\":100, \"duration\":0, \"distance\":0}",
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:31:41 +0100\", \"heart_rate\":122, \"signal_strength\":100, \"duration\":4002, \"distance\":0}",
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:31:45 +0100\", \"heart_rate\":126, \"signal_strength\":100, \"duration\":8001, \"distance\":0}",
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:31:49 +0100\", \"heart_rate\":130, \"signal_strength\":100, \"duration\":12001, \"distance\":0}",
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:31:53 +0100\", \"heart_rate\":136, \"signal_strength\":100, \"duration\":16001, \"distance\":0}",
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:31:57 +0100\", \"heart_rate\":136, \"signal_strength\":100, \"duration\":20001, \"distance\":0}",
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:32:05 +0100\", \"heart_rate\":133, \"signal_strength\":97, \"duration\":28001, \"distance\":10}",
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:32:11 +0100\", \"heart_rate\":132, \"signal_strength\":100, \"duration\":34000, \"distance\":33}",
-				"{\"version\":1,\"timestamp\":\"2012-03-17 09:32:17 +0100\", \"heart_rate\":155, \"signal_strength\":100, \"duration\":40001, \"distance\":55}" };
-
-		List<RunStatistic> listOfRateObj = new ArrayList<RunStatistic>();
-
-		for (int i = 0; i < listOfRates.length; i++) {
-			listOfRateObj.add(new Gson().fromJson(listOfRates[i],
-					RunStatistic.class));
-		}
-		// Collections.sort(listOfRateObj);
-		process(listOfRateObj);
-
-		return ok("parsed JSOn");
+		return ok("Request Complete");
 	}
 
 	protected static void process(List<RunStatistic> list) {
 		int currentHeartRate, currentDuration;
-		float easyDuration = 0, fatBurningDuration = 0, aerobicDuration = 0, anaerobicDuration = 0, redlineDuration = 0;
+		float easyDuration = 0, fatBurningDuration = 0, aerobicDuration = 0, anaerobicDuration = 0, redlineDuration = 0, nonOfThese = 0;
 
 		if (list.size() > 1) {
 			// store the 0th element
@@ -53,7 +84,7 @@ public class Application extends Controller {
 				currentDuration = runStatistic.getDuration() - currentDuration;
 				currentHeartRate = runStatistic.getHeartRate();
 
-				if (currentHeartRate > 90 && currentHeartRate < 120) {
+				if (currentHeartRate > 89 && currentHeartRate < 120) {
 					easyDuration += currentDuration;
 				} else if (currentHeartRate > 119 && currentHeartRate < 140) {
 					fatBurningDuration += currentDuration;
@@ -63,20 +94,23 @@ public class Application extends Controller {
 					anaerobicDuration += currentDuration;
 				} else if (currentHeartRate > 171 && currentHeartRate < 180) {
 					redlineDuration += currentDuration;
+				} else {
+					nonOfThese += currentDuration;
 				}
 				currentDuration = runStatistic.getDuration();
 			}
 			// percentage
-			Logger.info("easy duratiion percentage: "
+			Logger.info("easy duration percentage: "
 					+ (easyDuration / finalDuration) * 100);
-			Logger.info("fat duratiion percentage: "
+			Logger.info("fat duration percentage: "
 					+ (fatBurningDuration / finalDuration) * 100);
-			Logger.info("aerobic duratiion percentage: "
+			Logger.info("aerobic duration percentage: "
 					+ (aerobicDuration / finalDuration) * 100);
-			Logger.info("anaerobic duratiion percentage: "
+			Logger.info("anaerobic duration percentage: "
 					+ (anaerobicDuration / finalDuration) * 100);
-			Logger.info("redLine duratiion )percentage: "
+			Logger.info("redLine duration percentage: "
 					+ (redlineDuration / finalDuration) * 100);
+			Logger.info("noneOfThese: " + (nonOfThese / finalDuration) * 100);
 		}
 
 	}
