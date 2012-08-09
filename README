@@ -1,4 +1,6 @@
-This is your new Play 2.0 application
-=====================================
+## runAlgorithm
 
-This file will be packaged with your application, when using `play dist`.
+### A Play 2.0 application to get data from Runtastic RESTful webservice and calculate the heartbeat zones of the runner. It uses Akka async module to get the JSON data from the Web Service.
+
+
+
